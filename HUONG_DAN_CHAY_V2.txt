@@ -1,0 +1,48 @@
+QLDA - HƯỚNG DẪN CHẠY BẢN SỬA V2 (18/08/2026)
+================================================
+
+1) Mở PowerShell tại đúng thư mục chứa docker-compose.yml.
+
+2) Chạy:
+   docker compose down --remove-orphans
+   docker compose up -d --build
+   docker compose ps
+   docker compose logs db-migrations --tail=200
+
+3) Không dùng "docker compose down -v" nếu muốn giữ CSDL và file đã tải lên.
+
+4) Sau khi hệ thống lên:
+   - Mở http://localhost:5173
+   - Đăng xuất/đăng nhập lại hoặc Ctrl+F5 để Sidebar lấy quyền mới từ /api/auth/me.
+
+TÀI KHOẢN DEMO LÃNH ĐẠO (mật khẩu đều 123456)
+- PCNTT: lanhdao
+- PKTC : lanhdao_ktc
+- PHC  : lanhdao_hc
+- BQLDA: lanhdao_qlda
+- BGD  : giamdoc
+
+KIỂM TRA ỦY QUYỀN
+- Đăng nhập Lãnh đạo -> Ủy quyền xử lý -> ủy quyền cho Chuyên viên.
+- Đăng nhập lại Chuyên viên -> menu Phê duyệt tự xuất hiện trong thời gian ủy quyền còn hiệu lực.
+- Chuyên viên xem danh sách văn bản của Lãnh đạo đã ủy quyền và có thể Duyệt/Từ chối.
+
+KIỂM TRA PHÂN QUYỀN ĐỘNG
+- Admin -> Phân quyền -> Chuyên viên hoặc Trưởng đơn vị.
+- Bật ít nhất một cờ Xem/Tạo/Sửa/Xóa/Phê duyệt ở một chức năng nghiệp vụ -> Lưu thay đổi.
+- Đăng nhập lại tài khoản thuộc nhóm đó -> menu nghiệp vụ tương ứng xuất hiện.
+- Chức năng quản trị hệ thống (người dùng, đơn vị, phân quyền, nhật ký/giám sát...) không bị kéo sang menu nghiệp vụ.
+
+KIỂM TRA TẢI VĂN BẢN
+- Tải lên -> chọn Đơn vị chủ trì.
+- Ô Trưởng đơn vị nhận xử lý chỉ hiển thị LANH_DAO của đúng đơn vị đó.
+- Backend cũng chặn nếu cố gửi người của đơn vị khác.
+
+KIỂM TRA TEMPLATE
+- Lãnh đạo -> Template văn bản.
+- Có 6 mẫu Word dựng sẵn.
+- Tải mẫu: lấy file Word về máy.
+- Tạo văn bản: tạo Văn bản đi ở trạng thái Nháp.
+- Sau khi tạo bấm Mở văn bản #ID hoặc Xem trong Văn bản đi.
+- Trong chi tiết, tải bản soạn thảo đính kèm, chỉnh trên máy rồi tải bản đã chỉnh sửa lên lại.
+- Hồ sơ công việc -> Gắn VB: chọn văn bản bằng mã/trích yếu; bảng hồ sơ hiển thị và mở được văn bản đã gắn.

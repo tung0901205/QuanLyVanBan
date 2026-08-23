@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: ai-service
+
+  cloud:
+    compatibility-verifier:
+      enabled: false
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          public-key-location: classpath:public.pem
+
+server:
+  port: ${SERVER_PORT:8084}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+eureka:
+  client:
+    enabled: ${EUREKA_ENABLED:true}
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://service-registry:8761/eureka}
+    register-with-eureka: true
+    fetch-registry: true

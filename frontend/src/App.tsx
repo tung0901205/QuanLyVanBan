@@ -1,0 +1,85 @@
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import "./styles/app.css";
+import "./styles/admin.css";
+import "./styles/login.css";
+import "./styles/login-v2.css";
+import AppShell from "./shared/AppShell";
+import AdminShell from "./shared/AdminShell";
+import Dashboard from "./routes/user/Dashboard";
+import DocumentDetail from "./routes/user/DocumentDetail";
+import Inbox from "./routes/user/Inbox";
+import Login from "./routes/user/Login";
+import NotFound from "./routes/user/NotFound";
+import Profile from "./routes/user/Profile";
+import Search from "./routes/user/Search";
+import Upload from "./routes/user/Upload";
+import Approvals from "./routes/user/Approvals";
+import Notifications from "./routes/user/Notifications";
+import OutgoingDocuments from "./routes/user/OutgoingDocuments";
+import CaseFiles from "./routes/user/CaseFiles";
+import Delegation from "./routes/user/Delegation";
+import InternalDocuments from "./routes/user/InternalDocuments";
+import ChatBot from "./shared/ChatBot";
+import RequireRole from "./shared/RequireRole";
+import { ROLE_ADMIN, ROLE_MANAGER, ROLE_STAFF } from "./services/auth/roleUtils";
+// Admin components
+import AdminDashboard from "./routes/admin/AdminDashboard";
+import UserManagement from "./routes/admin/UserManagement";
+import PermissionManagement from "./routes/admin/PermissionManagement";
+import UnitManagement from "./routes/admin/UnitManagement";
+import DocumentTypeManagement from "./routes/admin/DocumentTypeManagement";
+import WorkflowManagement from "./routes/admin/WorkflowManagement";
+import TemplateManagement from "./routes/admin/TemplateManagement";
+import AuditLogs from "./routes/admin/AuditLogs";
+import Reports from "./routes/admin/Reports";
+import SlaManagement from "./routes/admin/SlaManagement";
+
+function RootRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={`/login${search}`} replace />;
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <ChatBot />
+      <Routes>
+        <Route path="/" element={<RootRedirect />} />
+        <Route path="/login" element={<Login />} />
+        <Route element={<RequireRole allowed={[ROLE_STAFF, ROLE_MANAGER]}><AppShell /></RequireRole>}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/inbox" element={<Inbox />} />
+          <Route path="/outgoing" element={<OutgoingDocuments />} />
+          <Route path="/search" element={<Search />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/documents/:id" element={<DocumentDetail />} />
+          <Route path="/notifications" element={<Notifications />} />
+
+          <Route path="/upload" element={<Upload />} />
+          <Route path="/case-files" element={<CaseFiles />} />
+          <Route path="/internal-documents" element={<InternalDocuments />} />
+          <Route path="/approvals" element={<Approvals />} />
+          <Route path="/delegation" element={<Delegation />} />
+          <Route path="/workflows" element={<WorkflowManagement />} />
+          <Route path="/templates" element={<TemplateManagement />} />
+          <Route path="/reports" element={<Reports />} />
+        </Route>
+
+        {/* Admin Routes */}
+        <Route element={<RequireRole allowed={[ROLE_ADMIN]}><AdminShell /></RequireRole>}>
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/users" element={<UserManagement />} />
+          <Route path="/admin/permissions" element={<PermissionManagement />} />
+          <Route path="/admin/units" element={<UnitManagement />} />
+          <Route path="/admin/document-types" element={<DocumentTypeManagement />} />
+          <Route path="/admin/audit-logs" element={<AuditLogs />} />
+          <Route path="/admin/sla" element={<SlaManagement />} />
+        </Route>
+
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App

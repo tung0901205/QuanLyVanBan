@@ -1,0 +1,289 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: qlda-postgres
+    environment:
+      POSTGRES_DB: QLDA
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./qlda.sql:/docker-entrypoint-initdb.d/01_qlda.sql:ro
+      - ./qlda_seed.sql:/docker-entrypoint-initdb.d/02_qlda_seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d QLDA"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    networks:
+      - qlda-net
+
+  db-migrations:
+    image: postgres:17-alpine
+    container_name: qlda-db-migrations
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: QLDA
+      PGUSER: postgres
+      PGPASSWORD: 123456
+    volumes:
+      - ./migrations:/migrations:ro
+    command: >
+      sh -c 'for file in /migrations/*.sql; do
+        echo "Applying $$file";
+        psql -v ON_ERROR_STOP=1 -f "$$file";
+      done'
+    networks:
+      - qlda-net
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: qlda-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - qlda-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: qlda-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - qlda-net
+
+  eureka-server:
+    build:
+      context: ./service-registry
+    container_name: qlda-eureka-server
+    ports:
+      - "8761:8761"
+    environment:
+      SERVER_PORT: 8761
+      EUREKA_INSTANCE_HOSTNAME: eureka-server
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+    networks:
+      - qlda-net
+
+  auth-service:
+    build:
+      context: ./auth-service
+    container_name: qlda-auth-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-migrations:
+        condition: service_completed_successfully
+      eureka-server:
+        condition: service_started
+    ports:
+      - "8081:8081"
+    env_file:
+      - .env
+    environment:
+      SERVER_PORT: 8081
+      DB_URL: jdbc:postgresql://postgres:5432/QLDA
+      DB_USERNAME: postgres
+      DB_PASSWORD: 123456
+      EUREKA_ENABLED: true
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka
+      INTERNAL_SERVICE_TOKEN: change-me-in-dev
+      AUTH_JWT_ISSUER: auth-service
+      AUTH_JWT_PRIVATE_KEY: classpath:private.pem
+      AUTH_JWT_PUBLIC_KEY: classpath:public.pem
+      AUTH_JWT_SECRET: ""
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
+    networks:
+      - qlda-net
+
+  document-service:
+    build:
+      context: ./document-service
+    container_name: qlda-document-service
+    depends_on:
+      - postgres
+      - kafka
+      - eureka-server
+      - auth-service
+    ports:
+      - "8082:8082"
+    environment:
+      SERVER_PORT: 8082
+      DB_URL: jdbc:postgresql://postgres:5432/QLDA
+      DB_USERNAME: postgres
+      DB_PASSWORD: 123456
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_ENABLED: true
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka
+      AUTH_SERVICE_URL: http://auth-service:8081
+      WORKFLOW_SERVICE_URL: http://workflow-service:8083
+      AI_SERVICE_URL: http://ai-service:8084
+      NOTIFICATION_EVENTS_TOPIC: notification-events
+      APP_UPLOAD_DIR: /app/uploads
+      INTERNAL_SERVICE_NAME: document-service
+      INTERNAL_SERVICE_TOKEN: change-me-in-dev
+      OFFICE365_TENANT_ID: ${OFFICE365_TENANT_ID:-}
+      OFFICE365_CLIENT_ID: ${OFFICE365_CLIENT_ID:-}
+      OFFICE365_CLIENT_SECRET: ${OFFICE365_CLIENT_SECRET:-}
+      SHAREPOINT_ENABLED: ${SHAREPOINT_ENABLED:-false}
+      SHAREPOINT_SITE_ID: ${SHAREPOINT_SITE_ID:-}
+      SHAREPOINT_UPLOAD_PATH: ${SHAREPOINT_UPLOAD_PATH:-eOIS/VanBan}
+    volumes:
+      - document-uploads:/app/uploads
+    networks:
+      - qlda-net
+
+  workflow-service:
+    build:
+      context: ./workflow-service
+    container_name: qlda-workflow-service
+    depends_on:
+      - postgres
+      - kafka
+      - eureka-server
+      - auth-service
+      - document-service
+    ports:
+      - "8083:8083"
+    environment:
+      SERVER_PORT: 8083
+      DB_URL: jdbc:postgresql://postgres:5432/QLDA
+      DB_USERNAME: postgres
+      DB_PASSWORD: 123456
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_ENABLED: true
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka
+      DOCUMENT_SERVICE_URL: http://document-service:8082
+      AUTH_SERVICE_URL: http://auth-service:8081
+      NOTIFICATION_EVENTS_TOPIC: notification-events
+      APP_UPLOAD_DIR: /app/uploads
+      INTERNAL_SERVICE_NAME: workflow-service
+      INTERNAL_SERVICE_TOKEN: change-me-in-dev
+    volumes:
+      - workflow-uploads:/app/uploads
+    networks:
+      - qlda-net
+
+  ai-service:
+    build:
+      context: ./ai-service
+    container_name: qlda-ai-service
+    depends_on:
+      - postgres
+      - eureka-server
+      - auth-service
+      - document-service
+      - workflow-service
+    ports:
+      - "8084:8084"
+    environment:
+      SERVER_PORT: 8084
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/QLDA
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123456
+      EUREKA_ENABLED: true
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka
+      DOCUMENT_SERVICE_BASE_URL: http://document-service:8082
+      WORKFLOW_SERVICE_BASE_URL: http://workflow-service:8083
+      AUTH_SERVICE_BASE_URL: http://auth-service:8081
+      SERVICE_NAME: ai-service
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-change-me-in-dev}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_API_MODEL: ${GEMINI_API_MODEL:-gemini-2.5-flash}
+      GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-gemini-embedding-2}
+    restart: unless-stopped
+    networks:
+      - qlda-net
+
+  notification-service:
+    build:
+      context: ./notification-service
+    container_name: qlda-notification-service
+    depends_on:
+      - postgres
+      - kafka
+      - eureka-server
+      - auth-service
+    ports:
+      - "8085:8085"
+    environment:
+      SERVER_PORT: 8085
+      DB_URL: jdbc:postgresql://postgres:5432/QLDA
+      DB_USERNAME: postgres
+      DB_PASSWORD: 123456
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_ENABLED: true
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka
+      DOCUMENT_SERVICE_URL: http://document-service:8082
+      WORKFLOW_SERVICE_URL: http://workflow-service:8083
+      AUTH_SERVICE_URL: http://auth-service:8081
+      NOTIFICATION_EVENTS_TOPIC: notification-events
+      NOTIFICATION_EVENTS_DLQ_TOPIC: notification-events-dlq
+      APP_UPLOAD_DIR: /app/uploads
+      INTERNAL_SERVICE_NAME: notification-service
+      INTERNAL_SERVICE_TOKEN: change-me-in-dev
+      OUTLOOK_SMTP_USERNAME: ${OUTLOOK_SMTP_USERNAME:-}
+      OUTLOOK_SMTP_PASSWORD: ${OUTLOOK_SMTP_PASSWORD:-}
+      OUTLOOK_SMTP_FROM: ${OUTLOOK_SMTP_FROM:-}
+      TEAMS_WEBHOOK_URL: ${TEAMS_WEBHOOK_URL:-}
+    volumes:
+      - notification-uploads:/app/uploads
+    networks:
+      - qlda-net
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+    container_name: qlda-api-gateway
+    depends_on:
+      - eureka-server
+      - auth-service
+      - document-service
+      - workflow-service
+      - notification-service
+      - ai-service
+    ports:
+      - "8080:8080"
+    environment:
+      SERVER_PORT: 8080
+      EUREKA_ENABLED: true
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka
+    networks:
+      - qlda-net
+
+networks:
+  qlda-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  document-uploads:
+  workflow-uploads:
+  notification-uploads:

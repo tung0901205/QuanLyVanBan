@@ -1,0 +1,38 @@
+QLDA V4.2 - CACH CHAY
+=====================
+
+1) Giai nen ZIP vao THU MUC MOI.
+2) Mo PowerShell tai thu muc co docker-compose.yml.
+
+Chay:
+
+docker compose down --remove-orphans
+
+docker compose build --no-cache frontend ai-service document-service notification-service api-gateway
+
+docker compose up -d --force-recreate
+
+docker compose ps
+
+Doi 1-2 phut, cac service chinh phai Healthy.
+`qlda-db-migrations Exited (0)` la binh thuong.
+
+Kiem tra AI:
+docker compose logs ai-service --tail=200
+
+Can thay dong:
+AI document bootstrap completed
+
+Kiem tra OCR khi co loi:
+docker compose logs ai-service --tail=200
+docker compose logs document-service --tail=120
+
+Kiem tra Notification:
+docker compose logs notification-service --tail=100
+
+Mo giao dien:
+http://localhost:5173
+
+Dang xuat -> dang nhap lai -> Ctrl + F5.
+
+KHONG chay `docker compose down -v` neu muon giu database va file upload.

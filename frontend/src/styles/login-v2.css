@@ -1,0 +1,32 @@
+.login-page { min-height: 100svh; display: grid; grid-template-columns: minmax(420px, 1.05fr) minmax(420px, .95fr); background: #f8fafc; }
+.login-hero { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; padding: clamp(32px, 5vw, 72px); color: #e2e8f0; background: radial-gradient(circle at 15% 15%, rgba(14,165,233,.26), transparent 35%), radial-gradient(circle at 90% 80%, rgba(20,184,166,.2), transparent 38%), linear-gradient(145deg,#0f172a 0%,#172554 58%,#0f3d4c 100%); }
+.login-hero::after { content: ""; position: absolute; inset: 0; opacity: .16; pointer-events: none; background-image: linear-gradient(rgba(255,255,255,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.08) 1px,transparent 1px); background-size: 44px 44px; mask-image: linear-gradient(to bottom right,black,transparent 72%); }
+.login-hero > * { position: relative; z-index: 1; }
+.login-hero__brand { display: flex; align-items: center; gap: 11px; font: 700 20px var(--heading); color: #fff; }
+.login-hero__brand svg,.login-features svg { color: #5eead4; }
+.login-hero__content { max-width: 650px; margin: 60px 0; }
+.login-hero__eyebrow { display: inline-block; margin-bottom: 18px; color: #5eead4; font-size: 12px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+.login-hero h1 { color: #fff; font-size: clamp(38px,4vw,64px); line-height: 1.08; letter-spacing: -.045em; }
+.login-hero p { max-width: 600px; margin-top: 24px; color: #cbd5e1; font-size: 16px; line-height: 1.75; }
+.login-hero small { color: #94a3b8; letter-spacing: .08em; }
+.login-features { display: grid; gap: 13px; margin-top: 34px; }
+.login-features div { display: flex; align-items: center; gap: 12px; color: #e2e8f0; font-size: 14px; }
+.login-panel { display: flex; align-items: center; justify-content: center; padding: clamp(24px,6vw,80px); }
+.login-card { width: min(100%,430px); }
+.login-card__mark { width: 50px; height: 50px; display: grid; place-items: center; color: #fff; border-radius: 14px; background: linear-gradient(135deg,#2563eb,#0f766e); box-shadow: 0 12px 28px rgba(37,99,235,.22); margin-bottom: 26px; }
+.login-card h2 { font-size: 30px; color: #0f172a; }
+.login-card > p { margin: 8px 0 30px; color: #64748b; font-size: 14px; }
+.login-card form { display: grid; gap: 9px; }
+.login-card label { margin-top: 8px; color: #334155; font-size: 13px; font-weight: 700; }
+.login-input { height: 48px; display: flex; align-items: center; gap: 10px; padding: 0 13px; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; color: #64748b; transition: border-color .18s,box-shadow .18s; }
+.login-input:focus-within { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); color: #2563eb; }
+.login-input input { min-width: 0; flex: 1; border: 0; outline: 0; color: #0f172a; background: transparent; }
+.login-input input::placeholder { color: #94a3b8; }
+.login-submit { height: 49px; margin-top: 16px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; border: 0; border-radius: 10px; background: #2563eb; color: #fff; font-weight: 700; cursor: pointer; box-shadow: 0 8px 20px rgba(37,99,235,.2); transition: background .18s,transform .18s,box-shadow .18s; }
+.login-submit:hover:not(:disabled) { background: #1d4ed8; transform: translateY(-1px); box-shadow: 0 12px 26px rgba(37,99,235,.26); }
+.login-submit:disabled { opacity: .68; cursor: wait; }
+.login-spinner { width: 17px; height: 17px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: login-spin .7s linear infinite; }
+@keyframes login-spin { to { transform: rotate(360deg); } }
+.login-alert { padding: 11px 13px; margin-bottom: 18px; border: 1px solid #fecaca; border-radius: 9px; background: #fef2f2; color: #b91c1c; font-size: 13px; }
+.login-demo { margin-top: 22px; padding-top: 18px; border-top: 1px solid #e2e8f0; color: #64748b; text-align: center; font-size: 12px; }
+@media (max-width: 900px) { .login-page { grid-template-columns: 1fr; } .login-hero { display: none; } .login-panel { min-height: 100svh; } }

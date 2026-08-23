@@ -1,0 +1,155 @@
+package com.qlda.documentservice.mapper;
+
+import com.qlda.documentservice.dto.response.DocumentResponses;
+import com.qlda.documentservice.entity.HoSoCongViec;
+import com.qlda.documentservice.entity.LoaiVanBan;
+import com.qlda.documentservice.entity.TepDinhKem;
+import com.qlda.documentservice.entity.TemplateVanBan;
+import com.qlda.documentservice.entity.VanBan;
+import java.util.Collections;
+import java.util.List;
+import org.springframework.stereotype.Component;
+
+@Component
+public class DocumentMapper {
+
+    public DocumentResponses.DocumentSimpleResponse toDocumentSimpleResponse(VanBan vanBan) {
+        return new DocumentResponses.DocumentSimpleResponse(
+            vanBan.getId(),
+            vanBan.getSoKyHieu(),
+            vanBan.getTrichYeu(),
+            vanBan.getPhanLoaiVanBan(),
+            vanBan.getTrangThai(),
+            vanBan.getNgayTao(),
+            vanBan.getNgayCapNhat()
+        );
+    }
+
+    public DocumentResponses.DocumentListItemResponse toDocumentListItemResponse(VanBan vanBan) {
+        return new DocumentResponses.DocumentListItemResponse(
+            vanBan.getId(),
+            vanBan.getSoKyHieu(),
+            vanBan.getTrichYeu(),
+            vanBan.getLoaiVanBan() == null ? null : vanBan.getLoaiVanBan().getTenLoaiVanBan(),
+            vanBan.getDonViBanHanh(),
+            vanBan.getNgayVanBan(),
+            vanBan.getNgayTiepNhan(),
+            vanBan.getHanXuLy(),
+            vanBan.getDoKhan(),
+            vanBan.getDoMat(),
+            vanBan.getTrangThai()
+        );
+    }
+
+    public DocumentResponses.AttachmentResponse toAttachmentResponse(TepDinhKem tepDinhKem) {
+        return new DocumentResponses.AttachmentResponse(
+            tepDinhKem.getId(),
+            tepDinhKem.getVanBan().getId(),
+            tepDinhKem.getTenTep(),
+            tepDinhKem.getDuongDanTep(),
+            tepDinhKem.getLoaiTep(),
+            tepDinhKem.getKichThuoc(),
+            tepDinhKem.getNgayTaiLen()
+        );
+    }
+
+    public DocumentResponses.DocumentDetailResponse toDocumentDetailResponse(VanBan vanBan, List<TepDinhKem> attachments) {
+        List<DocumentResponses.AttachmentResponse> mappedAttachments = attachments == null
+            ? Collections.emptyList()
+            : attachments.stream().map(this::toAttachmentResponse).toList();
+
+        return new DocumentResponses.DocumentDetailResponse(
+            vanBan.getId(),
+            vanBan.getSoKyHieu(),
+            vanBan.getTrichYeu(),
+            vanBan.getLoaiVanBan() == null ? null : vanBan.getLoaiVanBan().getId(),
+            vanBan.getLoaiVanBan() == null ? null : vanBan.getLoaiVanBan().getTenLoaiVanBan(),
+            vanBan.getDonViBanHanh(),
+            vanBan.getNguoiKy(),
+            vanBan.getNgayVanBan(),
+            vanBan.getNgayTiepNhan(),
+            vanBan.getDoMat(),
+            vanBan.getDoKhan(),
+            vanBan.getDonViChuTriId(),
+            vanBan.getHanXuLy(),
+            vanBan.getTrangThai(),
+            vanBan.getDaOCR(),
+            vanBan.getNoiDungOCR(),
+            vanBan.getDaKySo(),
+            vanBan.getAiPhanLoai(),
+            vanBan.getAiConfidence(),
+            mappedAttachments
+        );
+    }
+
+    public DocumentResponses.TemplateListItemResponse toTemplateListItemResponse(TemplateVanBan templateVanBan) {
+        return new DocumentResponses.TemplateListItemResponse(
+            templateVanBan.getId(),
+            templateVanBan.getMaTemplate(),
+            templateVanBan.getTenTemplate(),
+            templateVanBan.getLoaiVanBan() == null ? null : templateVanBan.getLoaiVanBan().getId(),
+            templateVanBan.getLoaiVanBan() == null ? null : templateVanBan.getLoaiVanBan().getTenLoaiVanBan(),
+            templateVanBan.getNoiDungMau(),
+            templateVanBan.getTepMau(),
+            templateVanBan.getSuDung()
+        );
+    }
+
+    public DocumentResponses.TemplateDetailResponse toTemplateDetailResponse(TemplateVanBan templateVanBan) {
+        return new DocumentResponses.TemplateDetailResponse(
+            templateVanBan.getId(),
+            templateVanBan.getMaTemplate(),
+            templateVanBan.getTenTemplate(),
+            templateVanBan.getLoaiVanBan() == null ? null : templateVanBan.getLoaiVanBan().getId(),
+            templateVanBan.getNoiDungMau(),
+            templateVanBan.getTepMau(),
+            templateVanBan.getSuDung()
+        );
+    }
+
+    public DocumentResponses.CaseFileListItemResponse toCaseFileListItemResponse(HoSoCongViec hoSoCongViec) {
+        return new DocumentResponses.CaseFileListItemResponse(
+            hoSoCongViec.getId(),
+            hoSoCongViec.getMaHoSo(),
+            hoSoCongViec.getTenHoSo(),
+            hoSoCongViec.getNguoiPhuTrachId(),
+            hoSoCongViec.getDonViId(),
+            hoSoCongViec.getTrangThai(),
+            hoSoCongViec.getVanBan() == null ? null : hoSoCongViec.getVanBan().getId(),
+            hoSoCongViec.getVanBan() == null ? null : hoSoCongViec.getVanBan().getSoKyHieu(),
+            hoSoCongViec.getVanBan() == null ? null : hoSoCongViec.getVanBan().getTrichYeu()
+        );
+    }
+
+    public DocumentResponses.CaseFileDetailResponse toCaseFileDetailResponse(HoSoCongViec hoSoCongViec) {
+        java.util.LinkedHashMap<Long, VanBan> uniqueDocuments = new java.util.LinkedHashMap<>();
+        if (hoSoCongViec.getVanBan() != null) uniqueDocuments.put(hoSoCongViec.getVanBan().getId(), hoSoCongViec.getVanBan());
+        hoSoCongViec.getVanBans().forEach(document -> uniqueDocuments.put(document.getId(), document));
+        List<DocumentResponses.CaseFileDocumentResponse> documents = uniqueDocuments.values().stream()
+            .map(document -> new DocumentResponses.CaseFileDocumentResponse(
+                document.getId(), document.getSoKyHieu(), document.getTrichYeu()
+            )).toList();
+        return new DocumentResponses.CaseFileDetailResponse(
+            hoSoCongViec.getId(),
+            hoSoCongViec.getMaHoSo(),
+            hoSoCongViec.getTenHoSo(),
+            hoSoCongViec.getNguoiPhuTrachId(),
+            hoSoCongViec.getDonViId(),
+            hoSoCongViec.getTrangThai(),
+            hoSoCongViec.getNgayMoHoSo(),
+            hoSoCongViec.getNgayDongHoSo(),
+            hoSoCongViec.getGhiChu(),
+            documents
+        );
+    }
+
+    public DocumentResponses.DocumentTypeResponse toDocumentTypeResponse(LoaiVanBan loaiVanBan) {
+        return new DocumentResponses.DocumentTypeResponse(
+            loaiVanBan.getId(),
+            loaiVanBan.getMaLoaiVanBan(),
+            loaiVanBan.getTenLoaiVanBan(),
+            loaiVanBan.getMoTa(),
+            loaiVanBan.getSuDung()
+        );
+    }
+}

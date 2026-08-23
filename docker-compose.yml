@@ -1,0 +1,358 @@
+services:
+  qlda-postgres:
+    image: pgvector/pgvector:pg17
+    container_name: qlda-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: QLDA
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./qlda-system/qlda.sql:/docker-entrypoint-initdb.d/01_qlda.sql:ro
+      - ./qlda-system/qlda_seed.sql:/docker-entrypoint-initdb.d/02_qlda_seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d QLDA"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  db-migrations:
+    image: postgres:17-alpine
+    container_name: qlda-db-migrations
+    restart: "no"
+    depends_on:
+      qlda-postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: qlda-postgres
+      PGPORT: 5432
+      PGDATABASE: QLDA
+      PGUSER: postgres
+      PGPASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes:
+      - ./qlda-system/migrations:/migrations:ro
+    command: >
+      sh -c 'set -e; for file in /migrations/*.sql; do
+        echo "Applying $$file";
+        psql -v ON_ERROR_STOP=1 -f "$$file";
+      done'
+
+  qlda-zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: qlda-zookeeper
+    restart: unless-stopped
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  qlda-kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: qlda-kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+    depends_on:
+      - qlda-zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: qlda-zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://qlda-kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  service-registry:
+    build: ./qlda-system/service-registry
+    container_name: qlda-eureka
+    restart: unless-stopped
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8761/actuator/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  auth-service:
+    build: ./qlda-system/auth-service
+    container_name: qlda-auth
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/actuator/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 25s
+    depends_on:
+      qlda-postgres:
+        condition: service_healthy
+      db-migrations:
+        condition: service_completed_successfully
+      service-registry:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      SERVER_PORT: 8081
+      DB_URL: jdbc:postgresql://qlda-postgres:5432/QLDA
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      EUREKA_ENABLED: "true"
+      EUREKA_SERVER_URL: http://service-registry:8761/eureka
+      AUTH_JWT_ISSUER: auth-service
+      AUTH_JWT_PRIVATE_KEY: classpath:private.pem
+      AUTH_JWT_PUBLIC_KEY: classpath:public.pem
+      AUTH_DEV_PASSWORD_ENABLED: "false"
+      AUTH_BACKUP_DIRECTORY: /app/backups
+    volumes:
+      - auth_backups:/app/backups
+
+  document-service:
+    build: ./qlda-system/document-service
+    container_name: qlda-document
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8082/actuator/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 25s
+    depends_on:
+      qlda-postgres:
+        condition: service_healthy
+      db-migrations:
+        condition: service_completed_successfully
+      service-registry:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      qlda-kafka:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      SERVER_PORT: 8082
+      DB_URL: jdbc:postgresql://qlda-postgres:5432/QLDA
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      EUREKA_ENABLED: "true"
+      EUREKA_SERVER_URL: http://service-registry:8761/eureka
+      KAFKA_BOOTSTRAP_SERVERS: qlda-kafka:29092
+      AUTH_SERVICE_URL: http://auth-service:8081
+      WORKFLOW_SERVICE_URL: http://workflow-service:8083
+      AI_SERVICE_URL: http://ai-service:8084
+      APP_UPLOAD_DIR: /app/uploads
+      MAX_UPLOAD_FILE_SIZE: ${MAX_UPLOAD_FILE_SIZE:-100MB}
+      MAX_UPLOAD_REQUEST_SIZE: ${MAX_UPLOAD_REQUEST_SIZE:-110MB}
+      MAX_UPLOAD_FILE_SIZE_BYTES: ${MAX_UPLOAD_FILE_SIZE_BYTES:-104857600}
+    volumes:
+      - document_uploads:/app/uploads
+
+  workflow-service:
+    build: ./qlda-system/workflow-service
+    container_name: qlda-workflow
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8083/actuator/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 25s
+    depends_on:
+      qlda-postgres:
+        condition: service_healthy
+      db-migrations:
+        condition: service_completed_successfully
+      service-registry:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      document-service:
+        condition: service_healthy
+      qlda-kafka:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      SERVER_PORT: 8083
+      DB_URL: jdbc:postgresql://qlda-postgres:5432/QLDA
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      EUREKA_ENABLED: "true"
+      EUREKA_SERVER_URL: http://service-registry:8761/eureka
+      DOCUMENT_SERVICE_URL: http://document-service:8082
+      AUTH_SERVICE_URL: http://auth-service:8081
+      KAFKA_BOOTSTRAP_SERVERS: qlda-kafka:29092
+
+  ai-service:
+    build:
+      context: ./qlda-system/ai-service
+    container_name: qlda-ai
+    restart: unless-stopped
+
+    ports:
+      - "8084:8084"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8084/actuator/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+    depends_on:
+      qlda-postgres:
+        condition: service_healthy
+      db-migrations:
+        condition: service_completed_successfully
+      service-registry:
+        condition: service_healthy
+      document-service:
+        condition: service_healthy
+      workflow-service:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+
+    env_file:
+      - .env
+
+    environment:
+      SERVER_PORT: 8084
+
+      DB_URL: jdbc:postgresql://qlda-postgres:5432/QLDA
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+
+      EUREKA_SERVER_URL: http://service-registry:8761/eureka
+
+      DOCUMENT_SERVICE_BASE_URL: http://document-service:8082
+      WORKFLOW_SERVICE_BASE_URL: http://workflow-service:8083
+      AUTH_SERVICE_BASE_URL: http://auth-service:8081
+
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Set INTERNAL_SERVICE_TOKEN in .env}
+      SERVICE_NAME: ai-service
+
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_API_MODEL: ${GEMINI_API_MODEL:-gemini-2.5-flash}
+      CHATBOT_TOP_K: ${CHATBOT_TOP_K:-5}
+      AI_UPLOAD_ROOT: /app/uploads
+    volumes:
+      - document_uploads:/app/uploads:ro
+
+  notification-service:
+    build:
+      context: ./qlda-system/notification-service
+    container_name: qlda-notification
+    restart: unless-stopped
+
+    ports:
+      - "8085:8085"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8085/actuator/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 25s
+
+    depends_on:
+      qlda-postgres:
+        condition: service_healthy
+      db-migrations:
+        condition: service_completed_successfully
+      service-registry:
+        condition: service_healthy
+      document-service:
+        condition: service_healthy
+      workflow-service:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      qlda-kafka:
+        condition: service_started
+
+    env_file:
+      - .env
+
+    environment:
+      SERVER_PORT: 8085
+
+      DB_URL: jdbc:postgresql://qlda-postgres:5432/QLDA
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+
+      EUREKA_SERVER_URL: http://service-registry:8761/eureka
+      KAFKA_BOOTSTRAP_SERVERS: qlda-kafka:29092
+
+      DOCUMENT_SERVICE_URL: http://document-service:8082
+      WORKFLOW_SERVICE_URL: http://workflow-service:8083
+      AUTH_SERVICE_URL: http://auth-service:8081
+
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Set INTERNAL_SERVICE_TOKEN in .env}
+      APP_REPORT_EXPORT_DIR: /app/exports
+    volumes:
+      - report_exports:/app/exports
+
+  api-gateway:
+    build: ./qlda-system/api-gateway
+    container_name: qlda-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 25s
+    depends_on:
+      service-registry:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      document-service:
+        condition: service_healthy
+      workflow-service:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      SERVER_PORT: 8080
+      EUREKA_ENABLED: "true"
+      EUREKA_SERVER_URL: http://service-registry:8761/eureka
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:8080
+        VITE_SHOW_DEMO_CREDENTIALS: "false"
+    container_name: qlda-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  document_uploads:
+  report_exports:
+  auth_backups:

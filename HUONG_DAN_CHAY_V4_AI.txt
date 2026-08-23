@@ -1,0 +1,56 @@
+QLDA V4 - HUONG DAN CHAY BAN SUA TRO LY AI + OCR + TOM TAT
+===========================================================
+
+1. Giai nen ZIP vao MOT THU MUC MOI, mo PowerShell tai thu muc co docker-compose.yml.
+
+2. KHONG dung: docker compose down -v
+   Vi -v se xoa PostgreSQL volume va document_uploads.
+
+3. Build lai cac service co thay doi:
+
+docker compose down --remove-orphans
+docker compose build --no-cache frontend ai-service document-service api-gateway
+docker compose up -d --force-recreate
+docker compose ps
+
+4. Kiem tra log:
+
+docker compose logs ai-service --tail=200
+docker compose logs document-service --tail=120
+
+5. Mo http://localhost:5173, dang xuat/dang nhap lai, Ctrl+F5.
+
+6. Test chatbot:
+- cach tai len van ban
+- uy quyen nhu nao
+- van ban noi bo la gi
+- toi co bao nhieu van ban cho xu ly
+- co bao nhieu van ban qua han
+- tim van ban ma BB/2026/PCNTT-018
+- di choi di
+
+Ket qua mong doi:
+- Cau huong dan -> dung menu/nghiep vu, khong tra so lieu nham.
+- Cau thong ke -> lay so that tu service noi bo.
+- Tim ma/ten -> hien danh sach van ban ma tai khoan co quyen xem.
+- Cau ngoai le -> tu choi va nhac pham vi ho tro he thong.
+
+7. Test tom tat:
+- Mo Chi tiet van ban co PDF/DOCX/anh dinh kem.
+- Mo Phan tich AI -> bam Tom tat.
+- Neu chua co noiDungOCR, frontend se tu OCR tep dinh kem dau tien roi luu OCR, sau do tom tat.
+- Neu Gemini khong co API key/het quota, he thong van co local-extractive fallback de tom tat.
+
+8. Test OCR thu cong:
+- Trong Chi tiet van ban -> Phan tich AI -> chon PDF/DOCX/PNG/JPG -> Nhan dang van ban.
+- Noi dung OCR phai hien trong textarea va duoc luu vao cot NoiDungOCR.
+
+9. Kiem tra DB OCR (thay <ID>):
+
+docker exec qlda-postgres psql -U postgres -d QLDA -c "select id,sokyhieu,daocr,left(noidungocr,300) from vanban where id=<ID>;"
+
+10. Kiem tra volume file da mount vao AI:
+
+docker inspect qlda-ai --format '{{range .Mounts}}{{println .Destination .RW}}{{end}}'
+
+Phai co /app/uploads false (read-only).

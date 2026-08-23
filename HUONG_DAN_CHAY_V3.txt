@@ -1,0 +1,53 @@
+QLDA V3 - HUONG DAN CHAY VA KIEM TRA
+====================================
+
+1. Giai nen file ZIP vao mot thu muc MOI. Khong chay trong thu muc V2 cu.
+2. Mo PowerShell tai thu muc co docker-compose.yml.
+3. Chay:
+
+   docker compose down --remove-orphans
+   docker compose build --no-cache frontend document-service workflow-service notification-service api-gateway
+   docker compose up -d --force-recreate
+   docker compose ps
+   docker compose logs db-migrations --tail=200
+
+Luu y: KHONG chay docker compose down -v neu muon giu database va tep tai len.
+Migration V010 se tu dong cap nhat template va an cac ban nhap template V2 bi loi.
+Document Service se tu dong ghi de 6 file Word mau tich hop vao volume document_uploads de sua ca volume cu.
+
+4. Sau khi tat ca service Healthy, vao http://localhost:5173, dang xuat/dang nhap lai va bam Ctrl+F5.
+
+KIEM TRA 1 - THONG BAO PHÊ DUYỆT
+- Dang nhap Chuyen vien.
+- Tai len/chuyen mot van ban den cho Truong don vi dung phong ban HOAC vao Van ban di -> Trinh duyet.
+- Dang nhap tai khoan Truong don vi vua nhan.
+- Mo Thong bao. Phai co thong bao moi co loai "Phê duyệt" hoac "Luân chuyển" va bam vao mo duoc van ban/Phê duyệt.
+- Kiem tra DB neu can:
+  docker exec qlda-postgres psql -U postgres -d QLDA -c "select id,tieude,loaithongbao,nguoinhanid,vanbanid,dadoc,ngaygui from thongbao order by id desc limit 10;"
+
+KIEM TRA 2 - TEMPLATE
+- Dang nhap Lanh dao -> Template van ban.
+- 6 mau tich hop phai co "Có file Word/PDF sẵn".
+- Bam Tai mau: file DOCX tieng Viet hien dung font.
+- Bam Tao van ban: form phai co thong tin chung + cac truong rieng theo tung mau.
+- Nhap du thong tin -> Tao van ban hoan chinh.
+- He thong phai hien link "Mo van ban #..."; van ban nam trong Van ban di, trang thai "Dang xu ly", khong phai Nhap.
+- Trong chi tiet phai co file ten "Van-ban-tu-mau-TPL-...docx", co kich thuoc va tai duoc.
+- Kiem tra DB:
+  docker exec qlda-postgres psql -U postgres -d QLDA -c "select id,sokyhieu,trichyeu,phanloaivanban,trangthai,ngayvanban,donvichutriid from vanban where phanloaivanban=2 and daxoa=false order by id desc limit 10;"
+  Van ban moi tu template phai co PhanLoaiVanBan=2 va TrangThai=1.
+
+KIEM TRA 3 - SLA
+- Admin -> Quan ly SLA.
+- Tab Cau hinh SLA: chon quy trinh va sua thoi gian tung buoc.
+- Tab Vi pham SLA: chi hien cac buoc dang xu ly co HanXuLy nho hon thoi diem hien tai.
+- Tab Sap het han: chi hien cac buoc dang xu ly het han trong 48 gio toi.
+- Bang hien ma/trich yeu, nguoi xu ly, han xu ly, muc tre/con lai va co nut Mo van ban.
+
+KIEM TRA 4 - GIAM SAT HE THONG
+- Menu Admin khong con "Giam sat he thong" va route /admin/monitoring khong con duoc dang ky.
+
+Neu giao dien van giong ban cu:
+- Chay: docker compose ps
+- Chay: docker exec qlda-frontend sh -c "grep -R 'Tạo văn bản hoàn chỉnh' -n /usr/share/nginx/html/assets 2>/dev/null | head"
+- Neu khong co ket qua, ban dang chay image frontend cu. Chay lai build --no-cache nhu buoc 3.
